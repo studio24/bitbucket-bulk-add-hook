@@ -1,0 +1,7 @@
+{
+    "name": "studio24/bitbucket-bulk-add-hook",
+    "require": {
+        "php": ">=5.3",
+		"gentle/bitbucket-api": "0.2.*"
+    }
+}
