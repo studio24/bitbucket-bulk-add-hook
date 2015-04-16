@@ -88,8 +88,9 @@ $api = new BitBucketAPI($username, $password);
 $repos = $api->listRepositories($account);
 echo "\n";
 
+$repoPattern = '!https://bitbucket.org/api/2.0/repositories/' . $account . '/(.+)/watchers$!';
 foreach ($repos->values as $repo) {
-    if (preg_match('!https://bitbucket.org/\!api/2.0/repositories/studio24/([a-z0-9\-]+)/watchers$!', $repo->links->watchers->href, $m)) {
+    if (preg_match($repoPattern, $repo->links->watchers->href, $m)) {
         $url = $m[1];
     } else {
         echo "Cannot match URL from " . $repo->links->watchers->href . PHP_EOL;
@@ -115,7 +116,7 @@ foreach ($repos->values as $repo) {
     if (!$slackIntegrated) {
         echo "Adding web hook to $hookUrl\n";
         if (!$api->createService($account, $url, $hookUrl)) {
-            echo "Failed to add web hook!\n"
+            echo "Failed to add web hook!\n";
         }
 
     } else {
