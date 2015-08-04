@@ -29,9 +29,9 @@ echo PHP_EOL . "Bulk add a POST hook to all repositories on your Bitbucket accou
 echo "------------------------------------------------------------------" . PHP_EOL . PHP_EOL;
 
 // Defaults (add values to auto-set these properties)
-//define('BITBUCKET_ACCOUNT', '');
-//define('BITBUCKET_POST_HOOK_URL', '');
-//define('BITBUCKET_USERNAME', '');
+// define('BITBUCKET_ACCOUNT', '');
+// define('BITBUCKET_POST_HOOK_URL', '');
+// define('BITBUCKET_USERNAME', '');
 //define('BITBUCKET_PASSWORD', '');
 
 // Get arguments
@@ -88,12 +88,14 @@ $api = new BitBucketAPI($username, $password);
 $repos = $api->listRepositories($account);
 echo "\n";
 
-$repoPattern = '!https://bitbucket.org/api/2.0/repositories/' . $account . '/(.+)/watchers$!';
+// Initial method
+// $repoPattern = '!https://bitbucket.org/api/2.0/repositories/' . $account . '/(.+)/watchers$!';
+$repoPattern = '!https://api.bitbucket.org/2.0/repositories/' . $account . '/(.+)/hooks$!';
 foreach ($repos->values as $repo) {
-    if (preg_match($repoPattern, $repo->links->watchers->href, $m)) {
+    if (preg_match($repoPattern, $repo->links->hooks->href, $m)) {
         $url = $m[1];
     } else {
-        echo "Cannot match URL from " . $repo->links->watchers->href . PHP_EOL;
+        echo "Cannot match URL from " . $repo->links->hooks->href . PHP_EOL;
         continue;
     }
 
