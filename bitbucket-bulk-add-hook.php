@@ -90,7 +90,12 @@ echo "\n";
 
 // Initial method
 // $repoPattern = '!https://bitbucket.org/api/2.0/repositories/' . $account . '/(.+)/watchers$!';
-$repoPattern = '!https://api.bitbucket.org/2.0/repositories/' . $account . '/(.+)/hooks$!';
+
+// Second method (Aug 4, 2015)
+// $repoPattern = '!https://api.bitbucket.org/2.0/repositories/' . $account . '/(.+)/hooks$!';
+
+// New Method (Aug 7, 2015)
+$repoPattern = '!https://bitbucket.org/\!api/2.0/repositories/' . $account . '/(.+)/hooks$!';
 foreach ($repos->values as $repo) {
     if (preg_match($repoPattern, $repo->links->hooks->href, $m)) {
         $url = $m[1];
