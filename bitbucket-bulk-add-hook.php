@@ -31,8 +31,9 @@ echo "------------------------------------------------------------------" . PHP_
 // Defaults (add values to auto-set these properties)
 // define('BITBUCKET_ACCOUNT', '');
 // define('BITBUCKET_POST_HOOK_URL', '');
+// define('BITBUCKET_POST_HOOK_NAME', '');
 // define('BITBUCKET_USERNAME', '');
-//define('BITBUCKET_PASSWORD', '');
+// define('BITBUCKET_PASSWORD', '');
 
 // Get arguments
 if (defined('BITBUCKET_ACCOUNT') && BITBUCKET_ACCOUNT != '') {
@@ -44,8 +45,14 @@ if (defined('BITBUCKET_ACCOUNT') && BITBUCKET_ACCOUNT != '') {
 if (defined('BITBUCKET_POST_HOOK_URL') && BITBUCKET_POST_HOOK_URL != '') {
     $hookUrl = BITBUCKET_POST_HOOK_URL;
 } else {
-    echo "Enter your new POST web hook to apply to all repositories: ";
+    echo "Enter your new POST web hook URL to apply to all repositories: ";
     $hookUrl = trim(fgets(STDIN));
+}
+if (defined('BITBUCKET_POST_HOOK_NAME') && BITBUCKET_POST_HOOK_NAME != '') {
+    $hookName = BITBUCKET_POST_HOOK_NAME;
+} else {
+    echo "Enter your new POST web hook name to apply to all repositories: ";
+    $hookName = trim(fgets(STDIN));
 }
 if (defined('BITBUCKET_USERNAME') && BITBUCKET_USERNAME != '') {
     $username = BITBUCKET_USERNAME;
@@ -64,7 +71,7 @@ if (defined('BITBUCKET_PASSWORD') && BITBUCKET_PASSWORD != '') {
 echo <<<EOD
 
 About to set up the following POST web hook:
-$hookUrl
+$hookName: $hookUrl
 
 On the Bitbucket account: $account
 Using the login username '$username'
@@ -89,12 +96,7 @@ $repos = $api->listRepositories($account);
 echo "\n";
 
 // Initial method
-// $repoPattern = '!https://bitbucket.org/api/2.0/repositories/' . $account . '/(.+)/watchers$!';
-
-// Second method (Aug 4, 2015)
 // $repoPattern = '!https://api.bitbucket.org/2.0/repositories/' . $account . '/(.+)/hooks$!';
-
-// New Method (Aug 7, 2015)
 $repoPattern = '!https://bitbucket.org/\!api/2.0/repositories/' . $account . '/(.+)/hooks$!';
 foreach ($repos->values as $repo) {
     if (preg_match($repoPattern, $repo->links->hooks->href, $m)) {
@@ -106,23 +108,19 @@ foreach ($repos->values as $repo) {
 
     echo "Testing repository: $url\n";
 
-    $services = $api->getRepositoryServices($account, $url);
+    $webhooks = $api->getRepositoryWebhooks($account, $url);
     $slackIntegrated = false;
-    if (!empty($services)) {
-        foreach ($services as $service) {
-            if ($service->service->type == 'POST') {
-                foreach ($service->service->fields as $data) {
-                    if ($data->value == $hookUrl) {
-                        $slackIntegrated = true;
-                    }
-                }
+    if (!empty($webhooks)) {
+        foreach ($webhooks->values as $data) {
+            if ($data->url == $hookUrl) {
+                $slackIntegrated = true;
             }
         }
     }
 
     if (!$slackIntegrated) {
         echo "Adding web hook to $hookUrl\n";
-        if (!$api->createService($account, $url, $hookUrl)) {
+        if (!$api->createWebhook($account, $url, $hookName, $hookUrl)) {
             echo "Failed to add web hook!\n";
         }
 
@@ -198,9 +196,9 @@ class BitBucketAPI {
      * @param string $repository
      * @return bool|mixed Array of response data, or false on failure
      */
-    public function getRepositoryServices($account, $repository)
+    public function getRepositoryWebhooks($account, $repository)
     {
-        return $this->get(sprintf('https://api.bitbucket.org/1.0/repositories/%s/%s/services', $account, $repository));
+        return $this->get(sprintf('https://api.bitbucket.org/2.0/repositories/%s/%s/hooks', $account, $repository));
     }
 
     /**
@@ -208,16 +206,19 @@ class BitBucketAPI {
      *
      * @param string $account
      * @param string $repository
+     * @param string $hookName
      * @param string $hookUrl
      * @return bool|mixed Array of response data, or false on failure
      */
-    public function createService($account, $repository, $hookUrl)
+    public function createWebhook($account, $repository, $hookName, $hookUrl)
     {
         $params = array(
-            'type' => 'POST',
-            'URL'  => $hookUrl
+            'description' => $hookName,
+            'url'         => $hookUrl,
+            'active'      => true,
+            'events'      => ['repo:push'],
         );
-        return $this->post(sprintf('https://api.bitbucket.org/1.0/repositories/%s/%s/services', $account, $repository), $params);
+        return $this->post(sprintf('https://api.bitbucket.org/2.0/repositories/%s/%s/hooks', $account, $repository), $params);
     }
 
     protected function get($url, $params = array())
@@ -257,7 +258,7 @@ class BitBucketAPI {
         curl_setopt($curl, CURLOPT_USERPWD, $this->username . ':' . $this->password);
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_URL, $url);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($params));
+        curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($params));
 
         // Run query
         echo "Posting to $url ...\n";
