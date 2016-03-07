@@ -32,7 +32,7 @@ echo "------------------------------------------------------------------" . PHP_
 // define('BITBUCKET_ACCOUNT', '');
 // define('BITBUCKET_POST_HOOK_URL', '');
 // define('BITBUCKET_USERNAME', '');
-//define('BITBUCKET_PASSWORD', '');
+// define('BITBUCKET_PASSWORD', '');
 
 // Get arguments
 if (defined('BITBUCKET_ACCOUNT') && BITBUCKET_ACCOUNT != '') {
@@ -88,9 +88,7 @@ $api = new BitBucketAPI($username, $password);
 $repos = $api->listRepositories($account);
 echo "\n";
 
-// Initial method
-// $repoPattern = '!https://bitbucket.org/api/2.0/repositories/' . $account . '/(.+)/watchers$!';
-$repoPattern = '!https://api.bitbucket.org/2.0/repositories/' . $account . '/(.+)/hooks$!';
+$repoPattern = '!https://bitbucket.org/\!api/2.0/repositories/' . $account . '/(.+)/hooks$!';
 foreach ($repos->values as $repo) {
     if (preg_match($repoPattern, $repo->links->hooks->href, $m)) {
         $url = $m[1];
@@ -101,26 +99,26 @@ foreach ($repos->values as $repo) {
 
     echo "Testing repository: $url\n";
 
-    $services = $api->getRepositoryServices($account, $url);
+    $hooks = $api->getRepositoryWebHooks($account, $url);
     $slackIntegrated = false;
-    if (!empty($services)) {
-        foreach ($services as $service) {
-            if ($service->service->type == 'POST') {
-                foreach ($service->service->fields as $data) {
-                    if ($data->value == $hookUrl) {
-                        $slackIntegrated = true;
-                    }
-                }
+    if (!empty($hooks)) {
+        foreach ($hooks->values as $hook) {
+            if ($hook->url == $hookUrl) {
+                $slackIntegrated = true;
             }
         }
     }
 
     if (!$slackIntegrated) {
         echo "Adding web hook to $hookUrl\n";
-        if (!$api->createService($account, $url, $hookUrl)) {
-            echo "Failed to add web hook!\n";
-        }
 
+        $api_response = $api->createWebHook($account, $url, $hookUrl);
+
+        if (is_null($api_response) || !$api_response || $api_response->url != $hookUrl) {
+            echo "Failed to add web hook!\n";
+        } else {
+            echo "Added web hook\n";
+        }
     } else {
         echo "Already integrated with the web hook\n";
     }
@@ -187,32 +185,52 @@ class BitBucketAPI {
     }
 
     /**
-     * Return all services setup for a repository
+     * Return all web hooks set up for a repository
      *
      * @param string $account
      * @param string $repository
      * @return bool|mixed Array of response data, or false on failure
      */
-    public function getRepositoryServices($account, $repository)
+    public function getRepositoryWebHooks($account, $repository)
     {
-        return $this->get(sprintf('https://api.bitbucket.org/1.0/repositories/%s/%s/services', $account, $repository));
+        return $this->get(sprintf('https://api.bitbucket.org/2.0/repositories/%s/%s/hooks', $account, $repository));
     }
 
     /**
-     * Create a new POST web hook service for a repository
+     * Create a new web hook for a repository
      *
      * @param string $account
      * @param string $repository
      * @param string $hookUrl
      * @return bool|mixed Array of response data, or false on failure
      */
-    public function createService($account, $repository, $hookUrl)
+    public function createWebHook($account, $repository, $hookUrl)
     {
         $params = array(
-            'type' => 'POST',
-            'URL'  => $hookUrl
+            'description' => 'Slack integration',
+            'url'  => $hookUrl,
+            'active' => true,
+            'events' => [
+                'repo:push',
+                'repo:fork',
+                'repo:commit_comment_created',
+                'repo:commit_status_created',
+                'repo:commit_status_updated',
+                'issue:created',
+                'issue:updated',
+                'issue:comment_created',
+                'pullrequest:created',
+                'pullrequest:updated',
+                'pullrequest:approved',
+                'pullrequest:unapproved',
+                'pullrequest:fulfilled',
+                'pullrequest:rejected',
+                'pullrequest:comment_created',
+                'pullrequest:comment_updated',
+                'pullrequest:comment_deleted'
+            ]
         );
-        return $this->post(sprintf('https://api.bitbucket.org/1.0/repositories/%s/%s/services', $account, $repository), $params);
+        return $this->post(sprintf('https://api.bitbucket.org/2.0/repositories/%s/%s/hooks', $account, $repository), $params);
     }
 
     protected function get($url, $params = array())
@@ -252,7 +270,7 @@ class BitBucketAPI {
         curl_setopt($curl, CURLOPT_USERPWD, $this->username . ':' . $this->password);
         curl_setopt($curl, CURLOPT_POST, true);
         curl_setopt($curl, CURLOPT_URL, $url);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($params));
+        curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($params));
 
         // Run query
         echo "Posting to $url ...\n";
