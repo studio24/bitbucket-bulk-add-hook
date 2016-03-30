@@ -6,6 +6,9 @@
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
 
+$numRepos = 0;
+$updatedRepos = 0;
+
 // Help
 if (isset($argv[1]) && in_array($argv[1], array('--help', '-help', '-h', '-?'))) {
     echo <<<EOD
@@ -97,6 +100,9 @@ foreach ($repos->values as $repo) {
         continue;
     }
 
+    // Count this repo
+    $numRepos++;
+
     echo "Testing repository: $url\n";
 
     $hooks = $api->getRepositoryWebHooks($account, $url);
@@ -117,6 +123,9 @@ foreach ($repos->values as $repo) {
         if (is_null($api_response) || !$api_response || $api_response->url != $hookUrl) {
             echo "Failed to add web hook!\n";
         } else {
+            // Count the repo update
+            $updatedRepos++;
+
             echo "Added web hook\n";
         }
     } else {
@@ -126,6 +135,8 @@ foreach ($repos->values as $repo) {
 }
 
 echo "All done!\n\n";
+
+echo "Repo Report\n===========\n\nTotal Repos: ".$numRepos."\n-----------------\nUpdated: ".$updatedRepos."\n\n";
 
 /**
  * Class to send/receive data from BitBucket API
