@@ -22,7 +22,7 @@ Script will ask for your Bitbucket login details and the URL of the
 POST hook you want to add.
 
 MIT License (MIT)
-Copyright (c) 2014 Studio 24 Ltd (www.studio24.net)
+Copyright (c) 2014-2016 Studio 24 Ltd (www.studio24.net)
 
 EOD;
     exit();
@@ -121,6 +121,7 @@ foreach ($repos->values as $repo) {
         $api_response = $api->createWebHook($account, $url, $hookUrl);
 
         if (is_null($api_response) || !$api_response || $api_response->url != $hookUrl) {
+            var_dump($api_response);exit;
             echo "Failed to add web hook!\n";
         } else {
             // Count the repo update
@@ -266,6 +267,12 @@ class BitBucketAPI {
         // Run query
         echo "Querying $url ...\n";
         $response = curl_exec($curl);
+
+        $httpResponseCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        if ($httpResponseCode !== 200) {
+            throw new Exception("Cannot make request, HTTP status code " . $httpResponseCode);
+        }
+
         if ($response !== false) {
             return json_decode($response);
         }
