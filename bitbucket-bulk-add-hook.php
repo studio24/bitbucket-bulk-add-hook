@@ -121,7 +121,6 @@ foreach ($repos->values as $repo) {
         $api_response = $api->createWebHook($account, $url, $hookUrl);
 
         if (is_null($api_response) || !$api_response || $api_response->url != $hookUrl) {
-            var_dump($api_response);exit;
             echo "Failed to add web hook!\n";
         } else {
             // Count the repo update
