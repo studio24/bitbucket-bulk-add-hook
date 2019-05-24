@@ -8,6 +8,8 @@ error_reporting(E_ALL);
 
 $numRepos = 0;
 $updatedRepos = 0;
+$whitelistedRepos = 0;
+$blacklistedRepos = 0;
 
 // Help
 if (isset($argv[1]) && in_array($argv[1], array('--help', '-help', '-h', '-?'))) {
@@ -36,6 +38,8 @@ echo "------------------------------------------------------------------" . PHP_
 // define('BITBUCKET_POST_HOOK_URL', '');
 // define('BITBUCKET_USERNAME', '');
 // define('BITBUCKET_PASSWORD', '');
+// define('BITBUCKET_WHITELIST', '');
+// define('BITBUCKET_BLACKLIST', '');
 
 // Get arguments
 if (defined('BITBUCKET_ACCOUNT') && BITBUCKET_ACCOUNT != '') {
@@ -61,6 +65,18 @@ if (defined('BITBUCKET_PASSWORD') && BITBUCKET_PASSWORD != '') {
 } else {
     echo "Enter your Bitbucket password: ";
     $password = trim(fgets(STDIN));
+}
+if (defined('BITBUCKET_WHITELIST') && BITBUCKET_WHITELIST != '') {
+    $whitelist = BITBUCKET_WHITELIST;
+} else {
+    echo "Enter pattern for whitelisting (Press enter to disable whitelisting): ";
+    $whitelist = trim(fgets(STDIN));
+}
+if (defined('BITBUCKET_BLACKLIST') && BITBUCKET_BLACKLIST != '') {
+    $blacklist = BITBUCKET_BLACKLIST;
+} else {
+    echo "Enter pattern for blacklisting (Press enter to disable blacklisting): ";
+    $blacklist = trim(fgets(STDIN));
 }
 
 // Confirm details
@@ -91,6 +107,8 @@ $api = new BitBucketAPI($username, $password);
 $repos = $api->listRepositories($account);
 echo "\n";
 
+echo "Success! Found ".count($repos->values)." repositories inside $account account.\n\n";
+
 $repoPattern = '!https://bitbucket.org/\!api/2.0/repositories/' . $account . '/(.+)/hooks$!';
 foreach ($repos->values as $repo) {
     if (preg_match($repoPattern, $repo->links->hooks->href, $m)) {
@@ -103,6 +121,23 @@ foreach ($repos->values as $repo) {
     // Count this repo
     $numRepos++;
 
+    if ( $blacklist != "" ) {
+      if ( preg_match("/$blacklist/", $repo->slug )) {
+        echo "Skipping repo ".$repo->slug." because is blacklisted\n";
+        $blacklistedRepos++;
+        continue;
+      } 
+    }
+    
+    if ( $whitelist != "" ) {
+      if ( preg_match("/$whitelist/", $repo->slug )) {
+        $whitelistedRepos++;
+      } else {
+        echo "Skipping repo ".$repo->slug." because does not match whitelist pattern\n";
+        continue;
+      }
+    }
+    
     echo "Testing repository: $url\n";
 
     $hooks = $api->getRepositoryWebHooks($account, $url);
@@ -136,7 +171,10 @@ foreach ($repos->values as $repo) {
 
 echo "All done!\n\n";
 
-echo "Repo Report\n===========\n\nTotal Repos: ".$numRepos."\n-----------------\nUpdated: ".$updatedRepos."\n\n";
+echo "Repo Report\n===========\n\nTotal Repos: ".$numRepos."\n-----------------\nUpdated: ".$updatedRepos."\n";
+if ($blacklist != "") echo "Blacklisted: ".$blacklistedRepos."\n";
+if ($whitelist != "") echo "Whitelisted: ".$whitelistedRepos."\n";
+echo "\n";
 
 /**
  * Class to send/receive data from BitBucket API
